@@ -58,19 +58,21 @@ func listBranches() ([]Branch, error) {
 type Commit struct {
 	Hash    string
 	Subject string
+	Author  string
 }
 
 func listCommits(branch string) ([]Commit, error) {
-	lines, err := git("log", "--pretty=format:%H %s", "--max-count=200", branch)
+	lines, err := git("log", "--pretty=format:%H#%an#%s", "--max-count=1000", branch)
 	if err != nil {
 		return nil, err
 	}
 
 	commits := make([]Commit, len(lines))
 	for i, line := range lines {
-		parts := strings.SplitN(line, " ", 2)
+		parts := strings.SplitN(line, "#", 3)
 		commits[i].Hash = parts[0]
-		commits[i].Subject = parts[1]
+		commits[i].Author = parts[1]
+		commits[i].Subject = parts[2]
 	}
 	return commits, nil
 }
@@ -82,10 +84,10 @@ type CommitNode struct {
 }
 
 func (cn CommitNode) ToTree(tree treeprint.Tree) {
-	var branch treeprint.Tree
+	var childBranch treeprint.Tree
 	data := cn.Subject
 	if cn.Hash != "" {
-		data = fmt.Sprintf("%s (%s)", cn.Subject, cn.Hash[:8])
+		data = fmt.Sprintf("%s (%s, %s)", cn.Subject, cn.Author, cn.Hash[:8])
 	}
 	if len(cn.Branches) > 0 {
 		meta := ""
@@ -99,23 +101,18 @@ func (cn CommitNode) ToTree(tree treeprint.Tree) {
 				meta += branch.Name
 			}
 		}
-		if len(cn.Children) > 1 {
-			branch = tree.AddMetaBranch(meta, data)
-		} else {
-			tree.AddMetaNode(meta, data)
-		}
+		childBranch = tree.AddMetaBranch(meta, data)
 	} else {
-		if len(cn.Children) > 1 {
-			branch = tree.AddBranch(data)
-		} else {
-			tree.AddNode(data)
-		}
+		childBranch = tree.AddBranch(data)
 	}
 	for i, child := range cn.Children {
-		if i == 0 {
+		if i == 0 && len(cn.Branches) == 0 {
 			child.ToTree(tree)
+		} else if i == len(cn.Children)-1 {
+			child.ToTree(childBranch)
 		} else {
-			child.ToTree(branch)
+			newBranch := childBranch.AddBranch("┐")
+			child.ToTree(newBranch)
 		}
 	}
 }
