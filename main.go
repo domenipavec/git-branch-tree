@@ -56,9 +56,10 @@ func listBranches() ([]Branch, error) {
 }
 
 type Commit struct {
-	Hash    string
-	Subject string
-	Author  string
+	Hash     string
+	Subject  string
+	Author   string
+	OnMaster bool
 }
 
 func listCommits(branch string) ([]Commit, error) {
@@ -106,7 +107,7 @@ func (cn CommitNode) ToTree(tree treeprint.Tree) {
 		childBranch = tree.AddBranch(data)
 	}
 	for i, child := range cn.Children {
-		if i == 0 && len(cn.Branches) == 0 {
+		if i == 0 && (len(cn.Branches) == 0 || cn.OnMaster) {
 			child.ToTree(tree)
 		} else if i == len(cn.Children)-1 {
 			child.ToTree(childBranch)
@@ -196,6 +197,7 @@ func main() {
 			}
 			cns[commit.Hash] = cn
 		}
+		cn.OnMaster = true
 		if i == 0 {
 			cn.Branches = append(cn.Branches, masterBranch)
 		}
