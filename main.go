@@ -63,7 +63,7 @@ type Commit struct {
 }
 
 func listCommits(branch string) ([]Commit, error) {
-	lines, err := git("log", "--pretty=format:%H#%an#%s", "--max-count=1000", branch)
+	lines, err := git("log", "--pretty=format:%H#%an#%s", "--max-count=1000", branch, "--")
 	if err != nil {
 		return nil, err
 	}
