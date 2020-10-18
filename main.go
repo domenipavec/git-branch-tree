@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/fatih/color"
+	"github.com/pkg/errors"
 	"github.com/xlab/treeprint"
 )
 
@@ -17,7 +18,7 @@ func git(arg ...string) ([]string, error) {
 	cmd := exec.Command("git", arg...)
 	cmd.Stdout = buf
 	if err := cmd.Run(); err != nil {
-		return nil, err
+		return nil, errors.Wrapf(err, "'git %v' failed", strings.Join(arg, " "))
 	}
 
 	lines := []string{}
@@ -44,12 +45,16 @@ func listBranches() ([]Branch, error) {
 		return nil, err
 	}
 
-	branches := make([]Branch, len(lines))
-	for i, line := range lines {
-		if line[0] == '*' {
-			branches[i].Current = true
+	branches := make([]Branch, 0, len(lines))
+	for _, line := range lines {
+		name := line[2:]
+		if strings.HasPrefix(name, "(HEAD detached at") {
+			continue
 		}
-		branches[i].Name = line[2:]
+		branches = append(branches, Branch{
+			Name:    name,
+			Current: line[0] == '*',
+		})
 	}
 
 	return branches, nil
