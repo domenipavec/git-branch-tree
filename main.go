@@ -55,6 +55,32 @@ func listBranches() ([]Branch, error) {
 	return branches, nil
 }
 
+func getMainBranchName() (string, error) {
+	lines, err := git("remote")
+	if err != nil {
+		return "", err
+	}
+	if len(lines) < 1 {
+		defBranchLines, err := git("config", "--get", "init.defaultBranch")
+		if err != nil {
+			return "master", nil
+		}
+		if len(defBranchLines) != 1 {
+			return "master", nil
+		}
+		return strings.TrimSpace(defBranchLines[0]), nil
+	}
+	symRefLines, err := git("symbolic-ref", fmt.Sprintf("refs/remotes/%s/HEAD", lines[0]))
+	if err != nil {
+		return "", err
+	}
+	if len(symRefLines) != 1 {
+		return "", fmt.Errorf("expected one line for symbolic-ref for remote %v", lines[0])
+	}
+	lastSlash := strings.LastIndexByte(symRefLines[0], '/')
+	return symRefLines[0][lastSlash+1:], nil
+}
+
 type Commit struct {
 	Hash     string
 	Subject  string
@@ -132,12 +158,17 @@ func (cn CommitNode) String() string {
 }
 
 func main() {
+	mainBranchName, err := getMainBranchName()
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	branches, err := listBranches()
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	mCommits, err := listCommits("master")
+	mCommits, err := listCommits(mainBranchName)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -147,14 +178,14 @@ func main() {
 		mMap[commit.Hash] = commit
 	}
 
-	var masterBranch Branch
+	var mainBranch Branch
 	cns := make(map[string]*CommitNode)
 	mNeeded := make(map[string]bool)
 	var ok bool
 	var cn, lastCn *CommitNode
 	for _, branch := range branches {
-		if branch.Name == "master" {
-			masterBranch = branch
+		if branch.Name == mainBranchName {
+			mainBranch = branch
 			continue
 		}
 		lastCn = nil
@@ -199,7 +230,7 @@ func main() {
 		}
 		cn.OnMaster = true
 		if i == 0 {
-			cn.Branches = append(cn.Branches, masterBranch)
+			cn.Branches = append(cn.Branches, mainBranch)
 		}
 		if lastCn != nil && !hasChild(cn, lastCn.Hash) {
 			cn.Children = append([]*CommitNode{lastCn}, cn.Children...)
