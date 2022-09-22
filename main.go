@@ -60,30 +60,31 @@ func listBranches() ([]Branch, error) {
 	return branches, nil
 }
 
-func getMainBranchName() (string, error) {
-	lines, err := git("remote")
-	if err != nil {
-		return "", err
-	}
-	if len(lines) < 1 {
+func getMainBranchName() string {
+	remoteLines, _ := git("remote")
+	if len(remoteLines) < 1 {
 		defBranchLines, err := git("config", "--get", "init.defaultBranch")
 		if err != nil {
-			return "master", nil
+			return "master"
 		}
 		if len(defBranchLines) != 1 {
-			return "master", nil
+			return "master"
 		}
-		return strings.TrimSpace(defBranchLines[0]), nil
+		return strings.TrimSpace(defBranchLines[0])
 	}
-	symRefLines, err := git("symbolic-ref", fmt.Sprintf("refs/remotes/%s/HEAD", lines[0]))
-	if err != nil {
-		return "", err
+	for _, remote := range remoteLines {
+		symRefLines, err := git("symbolic-ref", fmt.Sprintf("refs/remotes/%s/HEAD", remote))
+		if err != nil {
+			continue
+		}
+		if len(symRefLines) != 1 {
+			continue
+		}
+		lastSlash := strings.LastIndexByte(symRefLines[0], '/')
+		return symRefLines[0][lastSlash+1:]
 	}
-	if len(symRefLines) != 1 {
-		return "", fmt.Errorf("expected one line for symbolic-ref for remote %v", lines[0])
-	}
-	lastSlash := strings.LastIndexByte(symRefLines[0], '/')
-	return symRefLines[0][lastSlash+1:], nil
+
+	return "master"
 }
 
 type Commit struct {
@@ -163,10 +164,7 @@ func (cn CommitNode) String() string {
 }
 
 func main() {
-	mainBranchName, err := getMainBranchName()
-	if err != nil {
-		log.Fatal(err)
-	}
+	mainBranchName := getMainBranchName()
 
 	branches, err := listBranches()
 	if err != nil {
